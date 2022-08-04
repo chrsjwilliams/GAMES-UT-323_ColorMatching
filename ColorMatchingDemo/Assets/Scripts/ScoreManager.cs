@@ -33,14 +33,25 @@ public class ScoreManager : MonoBehaviour
 
     public void SaveScore()
     {
-        if(score > record)
+        if(score >= record)
         {
             PlayerPrefs.SetInt("RECORD", score);
-            PlayerPrefs.Save();
         }
+        PlayerPrefs.Save();
+
     }
 
     bool LoadScore() { return PlayerPrefs.HasKey("RECORD"); }
+
+    public void ResetRecord()
+    {
+        ResetScore();
+        PlayerPrefs.SetInt("RECORD", 0);
+        record = 0;
+        recordText.text = record + "";
+
+    }
+
 
     public void ResetScore()
     {

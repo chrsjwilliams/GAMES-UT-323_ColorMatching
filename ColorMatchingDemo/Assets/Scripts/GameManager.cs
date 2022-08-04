@@ -15,6 +15,8 @@ public class GameManager : MonoBehaviour
 
     [SerializeField] GridLayoutGroup colorButtonLayoutGroup;
 
+    [SerializeField] CanvasGroup gameCanvasGroup;
+
     [SerializeField] MonoTweener showGameTweener;
     [SerializeField] MonoTweener hideGameTweener;
 
@@ -26,7 +28,11 @@ public class GameManager : MonoBehaviour
 
     [SerializeField] float initalStartTime = 10;
 
+    [SerializeField] SelectionButton selectionButtonPrefab;
+    List<SelectionButton> selectionButtons = new List<SelectionButton>();
+
     int numButtonsToSpawn = 4;
+    int offButtonIndex = -1;
 
     // ~TODO:   -   create class for buttons to tap
     //          -   when correct button is tapped
@@ -50,28 +56,61 @@ public class GameManager : MonoBehaviour
     void Start()
     {
         playQuitButtonText.text = "play";
-        GenerateColor();
+        gameCanvasGroup.alpha = 0;
+
+    }
+
+    public void RestGame()
+    {
+        if (playMode == PlayMode.GAME) return;
+        scoreManager.ResetRecord();
     }
 
 
     public void TogglePlayMode()
     {
+        List<SelectionButton> toDelete = new List<SelectionButton>();
         switch (playMode)
         {
             case PlayMode.TITLE:
                 // go into game mode
                 playMode = PlayMode.GAME;
                 playQuitButtonText.text = "quit";
-
+                gameCanvasGroup.alpha = 1;
                 break;
             case PlayMode.GAME:
                 // go into title mode
                 playMode = PlayMode.TITLE;
                 playQuitButtonText.text = "play";
                 timer.StopTimer();
-
+                gameCanvasGroup.alpha = 0;
+                foreach (SelectionButton btn in selectionButtons)
+                {
+                    btn.OnPressed -= NewColor;
+                    toDelete.Add(btn);
+                }
+                foreach (SelectionButton btn in toDelete)
+                {
+                    Destroy(btn.gameObject);
+                }
+                toDelete.Clear();
+                selectionButtons.Clear();
                 break;
             case PlayMode.REPLAY:
+                
+
+                foreach (SelectionButton btn in selectionButtons)
+                {
+                    btn.OnPressed -= NewColor;
+                    toDelete.Add(btn);
+                }
+                foreach (SelectionButton btn in toDelete)
+                {
+                    Destroy(btn.gameObject);
+                }
+
+                toDelete.Clear();
+                selectionButtons.Clear();
                 // go into game mode
                 playMode = PlayMode.GAME;
                 playQuitButtonText.text = "replay";
@@ -81,7 +120,29 @@ public class GameManager : MonoBehaviour
 
         if(playMode == PlayMode.GAME)
         {
-            timer.SetTime(initalStartTime);
+            scoreManager.ResetScore();
+            timer.ResetTimer(initalStartTime);
+            GenerateColor();
+
+            numButtonsToSpawn = 4;
+            offButtonIndex = Random.Range(0, numButtonsToSpawn - 1);
+            for(int i = 0; i < numButtonsToSpawn; i++)
+            {
+                var newButton = Instantiate(selectionButtonPrefab, colorButtonLayoutGroup.transform);
+                if (i == offButtonIndex)
+                {
+                    newButton.SetButton(offColor, true);
+                }
+                else
+                {
+                    newButton.SetButton(targetColor, false);
+                }
+
+
+                newButton.OnPressed += NewColor;
+                selectionButtons.Add(newButton);
+            }
+
             StartGame();
         }
         else
@@ -90,11 +151,33 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    public void NewColor(bool foundColor)
+    {
+        if(!foundColor)
+        {
+            timer.SetTime(0);
+            for (int i = 0; i < selectionButtons.Count; i++)
+            {
+                if (i == offButtonIndex)
+                {
+                    selectionButtons[i].ShowIndicator(buttonPress: false);
+                }
+
+            }
+        }
+        else
+        {
+            scoreManager.IncrementScore();
+            timer.AddTime(3f);
+            GenerateColor();
+            SetBoard();
+        }
+    }
+
     public void StartGame()
     {
         timer.StartTimer();
         colorButtonLayoutGroup.constraintCount = 2;
-        numButtonsToSpawn = 4;
     }
 
     public void OnTimerFinished()
@@ -102,15 +185,47 @@ public class GameManager : MonoBehaviour
         scoreManager.SaveScore();
         playMode = PlayMode.REPLAY;
         playQuitButtonText.text = "replay";
+
+        timer.SetTime(0);
+        for (int i = 0; i < selectionButtons.Count; i++)
+        {
+
+            if (i == offButtonIndex)
+            {
+                selectionButtons[i].ShowIndicator(buttonPress: false);
+            }
+            selectionButtons[i].OnPressed -= NewColor;
+
+
+        }
+    }
+
+    public void SetBoard()
+    {
+        offButtonIndex = Random.Range(0, numButtonsToSpawn - 1);
+        for (int i = 0; i < selectionButtons.Count; i++)
+        {
+            if (i == offButtonIndex)
+            {
+                selectionButtons[i].SetButton(offColor, true);
+            }
+            else
+            {
+                selectionButtons[i].SetButton(targetColor, false);
+            }
+        }
     }
 
     public void GenerateColor()
     {
         targetColor = Random.ColorHSV();
+        int difficulty = 0;
 
-        float offset = 0.3f / (float)Mathf.Max(scoreManager.score, 1);
+        if (scoreManager.score % 4 == 0)
+            difficulty += 1;
 
-        changeMode = (ColorMode)Random.Range(0, 2);
+        float offset = 0.3f / (float)Mathf.Max(difficulty, 1);
+        changeMode = (ColorMode)Random.Range(0, 3);
         float hue, sat, val;
         Color.RGBToHSV(targetColor, out hue, out sat, out val);
         switch (changeMode)
@@ -118,17 +233,17 @@ public class GameManager : MonoBehaviour
             case ColorMode.HUE:
                 offColor = Color.HSVToRGB(  GenerateValue(hue, offset),
                                             sat,
-                                            val);
+                                            val, true);
                 break;
             case ColorMode.SAT:
                 offColor = Color.HSVToRGB(  hue ,
                                             GenerateValue(sat, offset),
-                                            val);
+                                            val,true);
                 break;
             case ColorMode.VAL:
                 offColor = Color.HSVToRGB(  hue,
                                             sat,
-                                            GenerateValue(val, offset));
+                                            GenerateValue(val, offset), true);
                 break;
         }    
     }
@@ -161,6 +276,24 @@ public class GameManager : MonoBehaviour
     {
         colorButtonLayoutGroup.constraintCount = 3;
         numButtonsToSpawn = 9;
+        int leftToSpawn = numButtonsToSpawn - selectionButtons.Count;
+
+        for (int i = 0; i < leftToSpawn; i++)
+        {
+            var newButton = Instantiate(selectionButtonPrefab, colorButtonLayoutGroup.transform);
+            if (i == offButtonIndex)
+            {
+                newButton.SetButton(offColor, true);
+            }
+            else
+            {
+                newButton.SetButton(targetColor, false);
+            }
+
+
+            newButton.OnPressed += NewColor;
+            selectionButtons.Add(newButton);
+        }
 
     }
 

@@ -94,13 +94,9 @@ public class Timer : MonoBehaviour
 
             // changes text color based on percentage of the time
             // that has been elapsed
-            if(elapsedTime < (startTime * 0.1f))
+            if(elapsedTime < (startTime * 0.3f))
             {
                 timerText.color = almostDone;
-            }
-            else if(elapsedTime < (startTime * 0.5f))
-            {
-                timerText.color = Color.yellow;
             }
             else
             {
